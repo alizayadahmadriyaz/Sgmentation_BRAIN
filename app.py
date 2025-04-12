@@ -1,16 +1,15 @@
 import streamlit as st
 import numpy as np
 import cv2
-import requests
-import os
-import tensorflow as tf
+import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam
-import matplotlib.pyplot as plt
+import tensorflow as tf
+import requests
+import os
 
 # --- Dice Coefficient and Loss ---
 smooth = 1e-15
-
 def dice_coef(y_true, y_pred):
     y_true = tf.keras.layers.Flatten()(y_true)
     y_pred = tf.keras.layers.Flatten()(y_pred)
@@ -20,36 +19,27 @@ def dice_coef(y_true, y_pred):
 def dice_loss(y_true, y_pred):
     return 1.0 - dice_coef(y_true, y_pred)
 
-# --- Dropbox URL for Model ---
-url = "https://www.dropbox.com/scl/fi/ci9go9wim9xxf3clukagc/BHAI_MERA_model.h5?rlkey=kzk2z468492l86bx6lfzucixl&e=1&st=9ox5alwh&dl=0"
-model_path = "folder/BHAI_MERA_model1.h5"
+# --- Download Model from Dropbox ---
+model_url = "https://www.dropbox.com/scl/fi/ci9go9wim9xxf3clukagc/BHAI_MERA_model.h5?rlkey=kzk2z468492l86bx6lfzucixl&e=1&st=9ox5alwh&dl=0"
+model_path = "BHAI_MERA_model.h5"
 
-# Check if model exists locally, if not, download it
-def download_model():
-    if not os.path.exists(model_path):
-        st.write("Model not found locally, downloading from Dropbox...")
-        response = requests.get(url)
-        if response.status_code == 200:
-            with open(model_path, "wb") as f:
-                f.write(response.content)
-            st.success("Model downloaded successfully!")
-        else:
-            st.error("Failed to download the model. Please try again later.")
-            return None
-    return model_path
+# Check if the model already exists in the app's environment
+if not os.path.exists(model_path):
+    # Download the model from Dropbox
+    response = requests.get(model_url)
+    with open(model_path, "wb") as f:
+        f.write(response.content)
+    st.write("Model downloaded successfully!")
 
-# --- Load Model Function ---
+# --- Load Model ---
 @st.cache_resource
 def load_segmentation_model():
-    model_file = download_model()
-    if model_file:
-        model = load_model(model_file, custom_objects={
-            'dice_loss': dice_loss,
-            'dice_coef': dice_coef
-        })
-        model.compile(loss=dice_loss, optimizer=Adam(1e-4), metrics=[dice_coef, 'accuracy'])
-        return model
-    return None
+    model = load_model(model_path, custom_objects={
+        'dice_loss': dice_loss,
+        'dice_coef': dice_coef
+    })
+    model.compile(loss=dice_loss, optimizer=Adam(1e-4), metrics=[dice_coef, 'accuracy'])
+    return model
 
 model = load_segmentation_model()
 
@@ -89,7 +79,3 @@ if uploaded_file is not None:
 
     with col2:
         st.image(cv2.cvtColor(resized_img, cv2.COLOR_BGR2RGB), caption='Resized Input Image', use_column_width=True)
-
-else:
-    st.write("Please upload an image to segment.")
-
